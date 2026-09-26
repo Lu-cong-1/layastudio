@@ -1,0 +1,30 @@
+# ---- 虚拟环境 / 缓存 ----
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ---- 运行数据：推理历史、设置(可能含 api_key)、模型标记、导出数据集、日志 ----
+# 私有数据，绝不入库
+data/
+
+# ---- QA 截图与自动化产物 ----
+output/
+.playwright-cli/
+
+# ---- 打包产物（exe 阶段）----
+build/
+dist/
+*.exe
+
+# ---- 编辑器 / 系统 ----
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# ---- 日志 ----
+*.log

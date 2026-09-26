@@ -1,0 +1,385 @@
+<!-- AI生成 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0D1117">
+<title>LayaStudio — Laya 决策工作台</title>
+<link rel="stylesheet" href="css/app.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%230D1117'/><path d='M9 16c5.5 0 5.5-7 11-7M9 16c5.5 0 5.5 7 11 7' stroke='%234F8CFF' stroke-width='2.2' fill='none' stroke-linecap='round'/><circle cx='9' cy='16' r='2.6' fill='%234F8CFF'/><circle cx='21' cy='9' r='2.1' fill='none' stroke='%234F8CFF' stroke-width='1.7'/><circle cx='21' cy='23' r='2.1' fill='%233FB950'/></svg>">
+</head>
+<body>
+<a class="skip-link" href="#view-root">跳到主内容</a>
+<p data-aigc-mark="1" style="margin:0 0 8px;font-size:10px;line-height:1.3;color:#6b6560;font-weight:400;">AI生成</p>
+
+<div class="app">
+
+  <!-- ============ 侧边导航 ============ -->
+  <aside class="sidebar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#161B22"></rect>
+        <path d="M9 16c5.5 0 5.5-7 11-7M9 16c5.5 0 5.5 7 11 7" stroke="#4F8CFF" stroke-width="2.2" fill="none" stroke-linecap="round"></path>
+        <circle cx="9" cy="16" r="2.6" fill="#4F8CFF"></circle>
+        <circle cx="21" cy="9" r="2.1" fill="none" stroke="#4F8CFF" stroke-width="1.7"></circle>
+        <circle cx="21" cy="23" r="2.1" fill="#3FB950"></circle>
+      </svg>
+      <span class="brand-name">LayaStudio</span>
+    </div>
+    <nav class="nav" id="nav">
+      <a href="#playground" data-view="playground" class="nav-item active">
+        <span class="nav-ico">◉</span><span>调试台</span>
+      </a>
+      <a href="#monitor" data-view="monitor" class="nav-item">
+        <span class="nav-ico">◍</span><span>观测台</span>
+      </a>
+      <a href="#models" data-view="models" class="nav-item">
+        <span class="nav-ico">▣</span><span>模型</span>
+      </a>
+      <a href="#history" data-view="history" class="nav-item">
+        <span class="nav-ico">≡</span><span>历史</span>
+      </a>
+      <a href="#eval" data-view="eval" class="nav-item">
+        <span class="nav-ico">◫</span><span>评估</span>
+      </a>
+      <a href="#settings" data-view="settings" class="nav-item">
+        <span class="nav-ico">⚙</span><span>设置</span>
+      </a>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="foot-label">Jev 兼容 API</div>
+      <code>POST /v1/systemone</code>
+      <div class="foot-hint" id="foot-hint">本地自托管 · Apache 2.0</div>
+    </div>
+  </aside>
+
+  <!-- ============ 主区域 ============ -->
+  <div class="main">
+    <header class="topbar">
+      <div class="pills" id="status-pills">
+        <span class="pill" id="pill-backend">…</span>
+        <span class="pill" id="pill-device">…</span>
+        <span class="pill" id="pill-loaded">…</span>
+      </div>
+      <div class="topbar-right">
+        <span class="muted small" id="status-extra"></span>
+        <span class="health"><span class="health-dot" id="health-dot"></span><span id="health-text">连接中</span></span>
+      </div>
+    </header>
+
+    <main id="view-root">
+
+      <!-- ============ 调试台 ============ -->
+      <section class="view" id="view-playground">
+        <div class="pg-grid">
+          <div class="pg-col">
+            <div class="card">
+              <div class="card-head">
+                <h2>State<span class="sub">决策输入</span></h2>
+                <div class="preset-chips" id="preset-chips"></div>
+              </div>
+              <textarea id="state-input" class="input-area" spellcheck="false"
+                aria-label="决策输入 State"
+                placeholder="粘贴工单、邮件、用户消息或提示词…（纯文本，或 { } JSON 对象）"></textarea>
+              <div class="card-foot row">
+                <label class="field-inline">model
+                  <select id="model-select" class="select" aria-label="选择模型 checkpoint">
+                    <option value="">auto（Router 自动路由）</option>
+                    <option value="english">english</option>
+                    <option value="multilingual">multilingual</option>
+                    <option value="typed-decisions">typed-decisions</option>
+                  </select>
+                </label>
+                <span class="muted small" id="state-meta">0 字符</span>
+                <button class="btn primary" id="btn-run" title="Ctrl+Enter">运行决策</button>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-head">
+                <h2>Questions<span class="sub">类型化问题（JSON）</span></h2>
+                <div class="head-tools">
+                  <span class="warn-pill hidden" id="option-warn"></span>
+                  <button class="btn ghost" id="btn-format">格式化</button>
+                </div>
+              </div>
+              <textarea id="questions-input" class="input-area mono" spellcheck="false"
+                aria-label="问题定义 JSON"></textarea>
+              <div class="hint">三种类型：<code>choice</code> 标签分类 · <code>score</code> 序数评分 ·
+                <code>noul</code> 校准概率 P(true)　—　choice 建议 ≤ 20 选项</div>
+            </div>
+          </div>
+
+          <div class="pg-col">
+            <div class="card results-card">
+              <div class="card-head">
+                <h2>结果</h2>
+                <div class="head-tools" id="meta-badges"></div>
+              </div>
+              <div id="results" class="results" aria-live="polite">
+                <div class="empty-state hero">
+                  <svg class="empty-logo" viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M9 16c5.5 0 5.5-7 11-7M9 16c5.5 0 5.5 7 11 7" stroke="#4F8CFF" stroke-width="2.2" fill="none" stroke-linecap="round"></path>
+                    <circle cx="9" cy="16" r="2.6" fill="#4F8CFF"></circle>
+                    <circle cx="21" cy="9" r="2.1" fill="none" stroke="#4F8CFF" stroke-width="1.7"></circle>
+                    <circle cx="21" cy="23" r="2.1" fill="#3FB950"></circle>
+                  </svg>
+                  <p class="empty-title">运行一次决策，类型化结果会显示在这里</p>
+                  <p class="empty-hint">选上方预设快速开始 · <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 直接运行</p>
+                </div>
+              </div>
+              <details class="raw" id="raw-wrap" hidden>
+                <summary>原始 JSON</summary>
+                <pre id="raw-json" class="mono"></pre>
+              </details>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 观测台 ============ -->
+      <section class="view hidden" id="view-monitor">
+        <div class="page-head">
+          <h1>观测台</h1>
+          <p class="muted">模型运行实时态势 —— 延迟、路由、意图与请求流，每 3 秒自动刷新</p>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi card">
+            <span class="kpi-label">总请求</span>
+            <b class="kpi-value" id="kpi-runs">—</b>
+            <span class="kpi-hint" id="kpi-runs-sub">今日 —</span>
+          </div>
+          <div class="kpi card">
+            <span class="kpi-label">平均延迟</span>
+            <b class="kpi-value" id="kpi-avg">—</b>
+            <span class="kpi-hint" id="kpi-avg-sub">p50 —</span>
+          </div>
+          <div class="kpi card">
+            <span class="kpi-label">P95 延迟</span>
+            <b class="kpi-value" id="kpi-p95">—</b>
+            <span class="kpi-hint" id="kpi-p95-sub">max —</span>
+          </div>
+          <div class="kpi card">
+            <span class="kpi-label">成功率</span>
+            <b class="kpi-value" id="kpi-rate">—</b>
+            <span class="kpi-hint" id="kpi-rate-sub">错误 —</span>
+          </div>
+          <div class="kpi card">
+            <span class="kpi-label">实时并发</span>
+            <b class="kpi-value" id="kpi-inflight">—</b>
+            <span class="kpi-hint" id="kpi-inflight-sub">上限 —</span>
+          </div>
+        </div>
+
+        <div class="mon-grid">
+          <div class="card span2">
+            <div class="card-head">
+              <h2>实时延迟<span class="sub">最近 60 次推理 · ms</span></h2>
+              <div class="head-tools"><span class="meta-badge hl" id="lat-now">— ms</span></div>
+            </div>
+            <svg id="lat-svg" class="chart" viewBox="0 0 640 180" preserveAspectRatio="none"></svg>
+            <div class="chart-legend" id="lat-legend"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>路由分布<span class="sub">checkpoint 选择</span></h2></div>
+            <div class="ring-wrap">
+              <svg id="route-ring" class="ring-svg" viewBox="0 0 120 120"></svg>
+              <div id="route-legend" class="ring-legend"></div>
+            </div>
+            <div class="subhead">脚本检测</div>
+            <div id="script-chips" class="chip-row"><span class="muted small">—</span></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>意图分布<span class="sub">choice 标签命中次数</span></h2></div>
+            <div id="intent-bars" class="bars"><div class="empty-state slim">暂无数据</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>请求量<span class="sub">近 12 小时 · UTC</span></h2></div>
+            <svg id="hourly-svg" class="chart short" viewBox="0 0 300 170"></svg>
+          </div>
+
+          <div class="card">
+            <div class="card-head"><h2>实时事件流<span class="sub">最新推理</span></h2></div>
+            <div id="event-stream" class="event-stream"><div class="empty-state slim">等待第一次推理…</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 模型 ============ -->
+      <section class="view hidden" id="view-models">
+        <div class="page-head">
+          <h1>模型</h1>
+          <p class="muted" id="models-hint">三个 Laya checkpoint：下载到本地 HF 缓存，按需加载进显存。</p>
+        </div>
+        <div class="banner hidden" id="mock-banner">
+          <strong>当前为 Mock 后端</strong>
+          <span>未检测到 laya 运行时（pip install laya），决策由关键词启发式生成，模型下载/加载暂不可用。
+            安装 laya 后在「设置」把后端切到 <code>laya</code> 即可解锁真实推理。</span>
+        </div>
+        <div class="model-grid" id="model-grid"></div>
+      </section>
+
+      <!-- ============ 历史 ============ -->
+      <section class="view hidden" id="view-history">
+        <div class="page-head">
+          <h1>推理历史</h1>
+          <p class="muted">每次决策都落在本地 SQLite，可检索、回放、导出为微调数据集。</p>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <div class="tools">
+              <input id="history-q" class="input" type="search" aria-label="搜索历史记录"
+                placeholder="搜索 state / 错误…">
+              <select id="history-status" class="select" aria-label="按状态筛选">
+                <option value="">全部状态</option>
+                <option value="ok">ok</option>
+                <option value="error">error</option>
+              </select>
+              <button class="btn" id="btn-export">导出选中 → 微调集</button>
+              <button class="btn ghost danger" id="btn-clear-history">清空</button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table class="table" id="history-table">
+              <thead>
+                <tr>
+                  <th class="col-chk"><input type="checkbox" id="chk-all" aria-label="全选当前列表"></th>
+                  <th>ID</th><th>时间</th><th>来源</th><th>路由</th><th>延迟</th>
+                  <th>状态</th><th>摘要</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="history-body"></tbody>
+            </table>
+          </div>
+          <div class="card-foot row between">
+            <span class="muted small" id="history-count"></span>
+            <button class="btn ghost hidden" id="btn-more">加载更多</button>
+          </div>
+        </div>
+        <div class="card hidden" id="history-detail">
+          <div class="card-head">
+            <h2>记录 <span id="hd-id" class="mono"></span></h2>
+            <div class="head-tools">
+              <button class="btn" id="hd-reuse">载入调试台</button>
+              <button class="btn ghost danger" id="hd-delete">删除</button>
+              <button class="btn ghost" id="hd-close">关闭</button>
+            </div>
+          </div>
+          <div class="detail-grid" id="hd-body"></div>
+        </div>
+      </section>
+
+      <!-- ============ 评估 ============ -->
+      <section class="view hidden" id="view-eval">
+        <div class="page-head">
+          <h1>批量评估</h1>
+          <p class="muted">带标注的 JSONL 数据集 → 逐条决策 → accuracy / ECE 前的快速体检。</p>
+        </div>
+        <div class="eval-grid">
+          <div class="card">
+            <div class="card-head"><h2>数据集</h2></div>
+            <div class="row gap">
+              <input id="eval-name" class="input grow" aria-label="任务名" placeholder="任务名（可选）">
+              <select id="eval-model" class="select" aria-label="评估使用的模型">
+                <option value="">auto</option>
+                <option value="english">english</option>
+                <option value="multilingual">multilingual</option>
+                <option value="typed-decisions">typed-decisions</option>
+              </select>
+            </div>
+            <textarea id="eval-dataset" class="input-area mono tall" spellcheck="false"
+              aria-label="评估数据集 JSONL"
+              placeholder='每行一条 JSONL（或整体数组）：
+{"state": "退款请求……", "questions": {...}, "expected": {"dept": "billing"}}'></textarea>
+            <div class="card-foot row between">
+              <a class="link" href="#" id="eval-sample">填入示例数据集</a>
+              <button class="btn primary" id="btn-eval-run">开始评估</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head"><h2>任务</h2>
+              <button class="btn ghost" id="btn-eval-refresh">刷新</button>
+            </div>
+            <div id="eval-list" class="eval-list"><div class="empty-state slim">还没有评估任务</div></div>
+          </div>
+        </div>
+        <div class="card hidden" id="eval-detail"></div>
+      </section>
+
+      <!-- ============ 设置 ============ -->
+      <section class="view hidden" id="view-settings">
+        <div class="page-head">
+          <h1>设置</h1>
+          <p class="muted">存 SQLite，除 host/port 外改动即时生效。</p>
+        </div>
+        <div class="card">
+          <div class="settings-grid">
+            <label class="setting">
+              <span class="setting-name">推理后端</span>
+              <select id="set-backend" class="select">
+                <option value="auto">auto（有 laya 用真实，否则 mock）</option>
+                <option value="laya">laya（强制真实模型）</option>
+                <option value="mock">mock（关键词启发）</option>
+              </select>
+              <span class="setting-desc">决定 /v1/systemone 由哪个引擎回答</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">设备 device</span>
+              <input id="set-device" class="input mono" placeholder="auto / cuda / cpu / mps / xpu">
+              <span class="setting-desc">留空自动选择；切换后端按新设备重建</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">并发上限</span>
+              <input id="set-max_concurrent" class="input mono" type="number" min="1" max="64">
+              <span class="setting-desc">超出返回 503，防止 GPU 过载</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">HF 镜像</span>
+              <input id="set-hf_endpoint" class="input mono" placeholder="https://hf-mirror.com">
+              <span class="setting-desc">模型下载地址，国内保持 hf-mirror.com</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">API Key</span>
+              <input id="set-api_key" class="input mono" type="password" placeholder="空 = 不鉴权">
+              <span class="setting-desc">非空时 /v1/systemone 需要 Authorization: Bearer</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">记录历史</span>
+              <select id="set-record_history" class="select">
+                <option value="1">开启</option>
+                <option value="0">关闭</option>
+              </select>
+              <span class="setting-desc">关闭后推理不写入 SQLite</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">选项警示阈值</span>
+              <input id="set-option_warn_threshold" class="input mono" type="number" min="1" max="100">
+              <span class="setting-desc">choice 选项数超过该值时在调试台提示</span>
+            </label>
+            <label class="setting">
+              <span class="setting-name">端口（重启生效）</span>
+              <input id="set-port" class="input mono" type="number" min="1" max="65535">
+              <span class="setting-desc">服务监听端口，重启 LayaStudio 后生效</span>
+            </label>
+          </div>
+          <div class="card-foot row between">
+            <span class="muted small" id="settings-path"></span>
+            <button class="btn primary" id="btn-settings-save">保存设置</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<div id="toast-wrap" aria-live="polite"></div>
+<script src="js/app.js"></script>
+</body>
+</html>

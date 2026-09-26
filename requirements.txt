@@ -1,0 +1,4 @@
+# LayaStudio 运行时依赖（真实推理另需：pip install laya）
+fastapi>=0.115
+uvicorn[standard]>=0.30
+huggingface_hub>=0.30
