@@ -44,6 +44,9 @@
       <a href="#eval" data-view="eval" class="nav-item">
         <span class="nav-ico">◫</span><span>评估</span>
       </a>
+      <a href="#logs" data-view="logs" class="nav-item">
+        <span class="nav-ico">☰</span><span>日志</span>
+      </a>
       <a href="#settings" data-view="settings" class="nav-item">
         <span class="nav-ico">⚙</span><span>设置</span>
       </a>
@@ -73,70 +76,191 @@
 
       <!-- ============ 调试台 ============ -->
       <section class="view" id="view-playground">
-        <div class="pg-grid">
-          <div class="pg-col">
-            <div class="card">
-              <div class="card-head">
-                <h2>State<span class="sub">决策输入</span></h2>
-                <div class="preset-chips" id="preset-chips"></div>
-              </div>
-              <textarea id="state-input" class="input-area" spellcheck="false"
-                aria-label="决策输入 State"
-                placeholder="粘贴工单、邮件、用户消息或提示词…（纯文本，或 { } JSON 对象）"></textarea>
-              <div class="card-foot row">
-                <label class="field-inline">model
-                  <select id="model-select" class="select" aria-label="选择模型 checkpoint">
-                    <option value="">auto（Router 自动路由）</option>
-                    <option value="english">english</option>
-                    <option value="multilingual">multilingual</option>
-                    <option value="typed-decisions">typed-decisions</option>
-                  </select>
-                </label>
-                <span class="muted small" id="state-meta">0 字符</span>
-                <button class="btn primary" id="btn-run" title="Ctrl+Enter">运行决策</button>
+
+        <!-- ── 第一部分：简易表单（普通用户优先） ── -->
+        <div class="form-flow">
+          <div class="card">
+            <div class="card-head">
+              <h2>State 上下文<span class="sub">模型读取的原始业务内容</span></h2>
+              <div class="preset-chips" id="preset-chips"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">输入格式</span>
+              <div class="seg" role="radiogroup" aria-label="State 输入格式">
+                <label class="seg-item"><input type="radio" name="state-mode" value="text" checked> 纯文本</label>
+                <label class="seg-item"><input type="radio" name="state-mode" value="json"> JSON 结构化对象</label>
               </div>
             </div>
-
-            <div class="card">
-              <div class="card-head">
-                <h2>Questions<span class="sub">类型化问题（JSON）</span></h2>
-                <div class="head-tools">
-                  <span class="warn-pill hidden" id="option-warn"></span>
-                  <button class="btn ghost" id="btn-format">格式化</button>
-                </div>
-              </div>
-              <textarea id="questions-input" class="input-area mono" spellcheck="false"
-                aria-label="问题定义 JSON"></textarea>
-              <div class="hint">三种类型：<code>choice</code> 标签分类 · <code>score</code> 序数评分 ·
-                <code>noul</code> 校准概率 P(true)　—　choice 建议 ≤ 20 选项</div>
+            <div class="field">
+              <label class="field-label" for="f-state">State 内容</label>
+              <textarea id="f-state" class="input-area" rows="4" spellcheck="false"
+                aria-label="State 内容"
+                placeholder="粘贴工单、邮件、用户消息等原始内容…（不能为空）"></textarea>
+              <div class="field-meta"><span class="muted small" id="f-state-meta">0 字符</span></div>
+              <p class="field-error" id="f-state-err" hidden></p>
             </div>
           </div>
 
-          <div class="pg-col">
-            <div class="card results-card">
-              <div class="card-head">
-                <h2>结果</h2>
-                <div class="head-tools" id="meta-badges"></div>
+          <div class="card">
+            <div class="card-head"><h2>选择决策任务类型</h2></div>
+            <div class="mode-grid" role="radiogroup" aria-label="决策任务类型">
+              <label class="mode-card">
+                <input type="radio" name="task-mode" value="choice" checked>
+                <span class="mode-body"><b>Choice 分类决策</b><span>意图判断、多选项归类</span></span>
+              </label>
+              <label class="mode-card">
+                <input type="radio" name="task-mode" value="score">
+                <span class="mode-body"><b>Score 等级打分</b><span>评估等级、打分</span></span>
+              </label>
+              <label class="mode-card">
+                <input type="radio" name="task-mode" value="noul">
+                <span class="mode-body"><b>Noul 是非判断</b><span>真假 / 是否判断</span></span>
+              </label>
+              <label class="mode-card">
+                <input type="radio" name="task-mode" value="batch">
+                <span class="mode-body"><b>批量多任务</b><span>一次同时跑多个判断</span></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="card" id="task-form-card">
+            <div class="card-head">
+              <h2 id="task-form-title">任务表单</h2>
+              <span class="muted small" id="task-form-sub">填写字段即可，无需编写 JSON</span>
+            </div>
+            <div id="single-task-form"></div>
+            <div id="batch-tasks" class="batch-list" hidden></div>
+          </div>
+
+          <div class="action-bar">
+            <button class="btn primary big" id="f-run" type="button" title="Ctrl+Enter">▶ 执行推理</button>
+            <button class="btn" id="f-draft" type="button" title="根据 State 自动起草问题草稿">✨ 帮我起草</button>
+            <button class="btn" id="f-example" type="button">🧩 加载示例模板</button>
+            <button class="btn ghost" id="f-save" type="button">📌 保存为模板</button>
+            <button class="btn ghost" id="f-tpl-lib" type="button">📂 模板库</button>
+            <span class="action-spacer"></span>
+            <label class="field-inline">model
+              <select id="model-select" class="select" aria-label="选择模型 checkpoint">
+                <option value="">auto（Router 自动路由）</option>
+                <option value="english">english</option>
+                <option value="multilingual">multilingual</option>
+                <option value="typed-decisions">typed-decisions</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="card hidden" id="template-panel">
+            <div class="card-head">
+              <h2>模板库<span class="sub">保存 / 载入 / 导入导出</span></h2>
+              <div class="head-tools">
+                <button class="btn sm ghost" id="tpl-export" type="button">导出 JSON</button>
+                <button class="btn sm ghost" id="tpl-import" type="button">导入 JSON</button>
+                <button class="btn sm ghost" id="tpl-close" type="button">收起</button>
               </div>
-              <div id="results" class="results" aria-live="polite">
-                <div class="empty-state hero">
-                  <svg class="empty-logo" viewBox="0 0 32 32" aria-hidden="true">
-                    <path d="M9 16c5.5 0 5.5-7 11-7M9 16c5.5 0 5.5 7 11 7" stroke="#4F8CFF" stroke-width="2.2" fill="none" stroke-linecap="round"></path>
-                    <circle cx="9" cy="16" r="2.6" fill="#4F8CFF"></circle>
-                    <circle cx="21" cy="9" r="2.1" fill="none" stroke="#4F8CFF" stroke-width="1.7"></circle>
-                    <circle cx="21" cy="23" r="2.1" fill="#3FB950"></circle>
-                  </svg>
-                  <p class="empty-title">运行一次决策，类型化结果会显示在这里</p>
-                  <p class="empty-hint">选上方预设快速开始 · <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 直接运行</p>
+            </div>
+            <div class="row gap">
+              <input id="tpl-name" class="input grow" placeholder="模板名称，如：客服工单-默认">
+              <input id="tpl-cat" class="input" placeholder="分类，如：客服" style="width:150px">
+              <button class="btn primary" id="tpl-save" type="button">保存当前表单</button>
+            </div>
+            <div id="tpl-list" class="eval-list" style="margin-top:12px">
+              <div class="empty-state slim">暂无模板，先在上方保存一个</div>
+            </div>
+            <input type="file" id="tpl-file" accept="application/json,.json" hidden>
+          </div>
+
+          <p class="hint center-hint">填好上方表单后执行 · <span class="kbd">Ctrl</span> + <span class="kbd">Enter</span> 可直接运行
+            · <button type="button" class="linklike" id="ob-reopen">? 使用引导</button></p>
+        </div>
+
+        <!-- ── 第三部分：结果展示（表单下方） ── -->
+        <div class="card results-card">
+          <div class="card-head">
+            <h2>结果</h2>
+            <div class="head-tools">
+              <div id="meta-badges"></div>
+              <details class="conf-help" id="conf-help">
+                <summary title="关于置信度与概率的用法">ⓘ</summary>
+                <div class="ch-pop">
+                  <b>怎么读 confidence</b><br>
+                  confidence = 1 − 归一化熵：选项分布越集中越高。它度量模型对这个答案
+                  <i>有多确定</i>，不直接等于「正确的概率」。<br><br>
+                  <b>怎么选</b>：只挑最高项执行、按把握分流 → 用
+                  <b>confidence</b>；要设统计阈值、和算法融合 → 用
+                  <b>probabilities</b>。（官方 Agent Skill 告谕）
                 </div>
-              </div>
-              <details class="raw" id="raw-wrap" hidden>
-                <summary>原始 JSON</summary>
-                <pre id="raw-json" class="mono"></pre>
               </details>
             </div>
           </div>
+          <div class="warn-banner" id="warn-banner" hidden></div>
+          <div class="budget-bar" id="budget-bar" hidden></div>
+          <div class="gate-bar" id="gate-bar" hidden>
+            <span class="gate-label">自动化阈值</span>
+            <input type="range" id="gate-threshold" min="0.5" max="0.99" step="0.01"
+              value="0.85" aria-label="自动化置信度阈值">
+            <span class="gate-val" id="gate-val">0.85</span>
+            <span class="gate-legend">
+              <span class="g-auto">● ≥阈值 可自动</span>
+              <span class="g-esc">● &lt;阈值 转人工</span>
+              <span class="g-abs">● choice 首位&lt;0.5 弃答</span>
+            </span>
+          </div>
+          <div class="verdict-row" id="verdict-row" hidden></div>
+          <div id="results" class="results" aria-live="polite">
+            <div class="empty-state hero">
+              <svg class="empty-logo" viewBox="0 0 32 32" aria-hidden="true">
+                <path d="M9 16c5.5 0 5.5-7 11-7M9 16c5.5 0 5.5 7 11 7" stroke="#4F8CFF" stroke-width="2.2" fill="none" stroke-linecap="round"></path>
+                <circle cx="9" cy="16" r="2.6" fill="#4F8CFF"></circle>
+                <circle cx="21" cy="9" r="2.1" fill="none" stroke="#4F8CFF" stroke-width="1.7"></circle>
+                <circle cx="21" cy="23" r="2.1" fill="#3FB950"></circle>
+              </svg>
+              <p class="empty-title">填写上方表单，执行一次决策</p>
+              <p class="empty-hint">结果、置信度与概率分布会显示在这里</p>
+            </div>
+          </div>
         </div>
+
+        <!-- ── 第二部分：高级调试面板（页面最下方，默认折叠） ── -->
+        <details class="card advanced" id="adv-panel">
+          <summary>高级调试面板 · 拼装 JSON / 原始返回 / 代码调用（开发者）</summary>
+          <div class="adv-body">
+            <div class="field">
+              <div class="row between">
+                <span class="field-label">原始 JSON 输入（可编辑，与表单双向互通）</span>
+                <div class="head-tools">
+                  <button class="btn sm ghost" id="json-fill-form" type="button">从表单填入</button>
+                  <button class="btn sm ghost" id="json-apply-form" type="button">应用到表单</button>
+                  <button class="btn sm primary" id="json-run" type="button">用 JSON 执行</button>
+                </div>
+              </div>
+              <textarea id="json-input" class="input-area mono" rows="12" spellcheck="false"
+                aria-label="原始 JSON 输入"
+                placeholder='{"state": "……", "questions": {"intent": {"type": "choice", ...}}}'></textarea>
+              <p class="field-error" id="err-json-input" hidden></p>
+            </div>
+            <div class="field">
+              <div class="row between">
+                <span class="field-label">已拼装完成的 Laya 输入 JSON（只读，随表单实时更新）</span>
+                <button class="btn sm ghost" id="copy-payload" type="button">复制</button>
+              </div>
+              <pre class="code-block mono" id="payload-preview">{}</pre>
+            </div>
+            <div class="field">
+              <div class="row between">
+                <span class="field-label">模型返回原始 JSON 结果</span>
+                <button class="btn sm ghost" id="copy-raw" type="button">复制</button>
+              </div>
+              <pre class="code-block mono" id="raw-json">—</pre>
+            </div>
+            <div class="field">
+              <div class="row between">
+                <span class="field-label">代码调试 · curl 调用示例</span>
+                <button class="btn sm ghost" id="copy-curl" type="button">复制</button>
+              </div>
+              <pre class="code-block mono" id="curl-code">—</pre>
+            </div>
+          </div>
+        </details>
       </section>
 
       <!-- ============ 观测台 ============ -->
@@ -171,6 +295,11 @@
             <span class="kpi-label">实时并发</span>
             <b class="kpi-value" id="kpi-inflight">—</b>
             <span class="kpi-hint" id="kpi-inflight-sub">上限 —</span>
+          </div>
+          <div class="kpi card">
+            <span class="kpi-label">显存占用</span>
+            <b class="kpi-value" id="kpi-vram">—</b>
+            <span class="kpi-hint" id="kpi-vram-sub">—</span>
           </div>
         </div>
 
@@ -216,6 +345,7 @@
         <div class="page-head">
           <h1>模型</h1>
           <p class="muted" id="models-hint">三个 Laya checkpoint：下载到本地 HF 缓存，按需加载进显存。</p>
+          <div class="chip-row" id="models-hw" style="margin-top:10px"></div>
         </div>
         <div class="banner hidden" id="mock-banner">
           <strong>当前为 Mock 后端</strong>
@@ -240,6 +370,14 @@
                 <option value="">全部状态</option>
                 <option value="ok">ok</option>
                 <option value="error">error</option>
+              </select>
+              <input id="export-min-conf" class="input mono" type="number" min="0" max="1" step="0.05"
+                placeholder="置信度 ≥" style="width:108px" aria-label="导出置信度阈值">
+              <select id="export-type" class="select" aria-label="导出任务类型">
+                <option value="">全部类型</option>
+                <option value="choice">含 choice</option>
+                <option value="score">含 score</option>
+                <option value="noul">含 noul</option>
               </select>
               <button class="btn" id="btn-export">导出选中 → 微调集</button>
               <button class="btn ghost danger" id="btn-clear-history">清空</button>
@@ -312,6 +450,30 @@
         <div class="card hidden" id="eval-detail"></div>
       </section>
 
+      <!-- ============ 日志 ============ -->
+      <section class="view hidden" id="view-logs">
+        <div class="page-head">
+          <h1>日志</h1>
+          <p class="muted">服务运行日志 · 分级查看 · 可导出排查问题</p>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>运行日志<span class="sub">最近 1000 条环形缓冲，约 3 秒刷新</span></h2>
+            <div class="head-tools">
+              <div class="seg" role="radiogroup" aria-label="日志级别">
+                <label class="seg-item"><input type="radio" name="log-level" value="DEBUG"> DEBUG</label>
+                <label class="seg-item"><input type="radio" name="log-level" value="INFO" checked> INFO</label>
+                <label class="seg-item"><input type="radio" name="log-level" value="WARNING"> WARN</label>
+                <label class="seg-item"><input type="radio" name="log-level" value="ERROR"> ERROR</label>
+              </div>
+              <button class="btn sm" id="log-export" type="button">导出日志</button>
+              <button class="btn sm ghost" id="log-refresh" type="button">刷新</button>
+            </div>
+          </div>
+          <div id="log-list" class="log-list"><div class="empty-state slim">暂无日志</div></div>
+        </div>
+      </section>
+
       <!-- ============ 设置 ============ -->
       <section class="view hidden" id="view-settings">
         <div class="page-head">
@@ -350,6 +512,14 @@
               <span class="setting-desc">非空时 /v1/systemone 需要 Authorization: Bearer</span>
             </label>
             <label class="setting">
+              <span class="setting-name">Jev API 开关</span>
+              <select id="set-api_enabled" class="select">
+                <option value="1">启用 /v1/systemone</option>
+                <option value="0">停用（仅工作台可用）</option>
+              </select>
+              <span class="setting-desc">停用后 Agent 调用返回 503；/health 始终可用</span>
+            </label>
+            <label class="setting">
               <span class="setting-name">记录历史</span>
               <select id="set-record_history" class="select">
                 <option value="1">开启</option>
@@ -376,6 +546,38 @@
       </section>
 
     </main>
+  </div>
+</div>
+
+<div id="onboard" class="onboard-overlay hidden" role="dialog" aria-modal="true" aria-label="使用引导">
+  <div class="onboard-card">
+    <div class="ob-progress"><i id="ob-bar" style="width:33.3%"></i></div>
+    <div class="ob-body">
+      <div class="ob-step" data-step="1">
+        <div class="ob-ico">1</div>
+        <h3>把原始内容放进 State</h3>
+        <p>把工单、邮件、用户消息的<b>原文</b>粘进 State 输入框——纯文本即可；
+        结构化数据可切换「JSON 结构化对象」。内容越贴近真实业务，判断越准。</p>
+      </div>
+      <div class="ob-step hidden" data-step="2">
+        <div class="ob-ico">2</div>
+        <h3>选任务，填表单，执行</h3>
+        <p>四张任务卡选一个（分类 / 打分 / 是非 / 批量），填好 Key 与判断指令，
+        点击 <b>▶ 执行推理</b>（或 <span class="kbd">Ctrl</span>+<span class="kbd">Enter</span>）。
+        一题只判断一件事，复杂情况拆成多题。</p>
+      </div>
+      <div class="ob-step hidden" data-step="3">
+        <div class="ob-ico">3</div>
+        <h3>读懂结果</h3>
+        <p><b>最佳决策 + 置信度</b>是核心；下方滑杆按阈值把答案分为
+        <b>可自动 / 转人工 / 弃答</b> 三态。黄色警示条是已知坑提醒（不拦截执行），
+        <b>ⓘ</b> 里有置信度的完整解释。</p>
+      </div>
+    </div>
+    <div class="ob-actions">
+      <button class="btn ghost" id="ob-skip" type="button">跳过</button>
+      <button class="btn primary" id="ob-next" type="button">下一步</button>
+    </div>
   </div>
 </div>
 
