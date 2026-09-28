@@ -31,3 +31,8 @@ Thumbs.db
 
 # ---- 工具运行残留（截图脚本变量为空时误建）----
 undefined/
+
+# ---- skills CLI 项目级安装副产物（开发辅助，不入库）----
+/.agents/
+/.claude/
+/skills-lock.json
