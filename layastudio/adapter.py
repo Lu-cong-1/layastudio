@@ -514,8 +514,12 @@ class Engine:
         except Exception:
             log.exception("inference failed (backend=%s, model=%s)", backend.name, model)
             if record:
+                # 对外响应保持 Jev 标准 "inference failed"；栈只写本地历史供排查
+                import traceback
+
+                detail = "inference failed\n" + traceback.format_exc()[-2000:]
                 self._record(source, backend, model, state, questions,
-                             None, None, None, 0.0, "error", "inference failed")
+                             None, None, None, 0.0, "error", detail)
             raise AdapterError(500, "inference failed") from None
         latency = (time.perf_counter() - t0) * 1000.0
         if record and self.settings.get_bool("record_history"):

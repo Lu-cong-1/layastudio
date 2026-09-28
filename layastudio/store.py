@@ -67,6 +67,15 @@ CREATE TABLE IF NOT EXISTS eval_items (
     error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_eval_items_job ON eval_items(job_id);
+
+CREATE TABLE IF NOT EXISTS templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '默认',
+    form_json TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_templates_category ON templates(category);
 """
 
 
@@ -375,6 +384,54 @@ class Store:
         with self._lock:
             self._conn.execute("DELETE FROM eval_items WHERE job_id = ?", (job_id,))
             cur = self._conn.execute("DELETE FROM eval_jobs WHERE id = ?", (job_id,))
+            self._conn.commit()
+            return cur.rowcount > 0
+
+    # ---------------- 模板库 ----------------
+
+    def add_template(self, name: str, category: str, form: Dict[str, Any]) -> int:
+        with self._lock:
+            cur = self._conn.execute(
+                "INSERT INTO templates (name, category, form_json, created_at) VALUES (?,?,?,?)",
+                (name, category or "默认", _dumps(form), _now()),
+            )
+            self._conn.commit()
+            return int(cur.lastrowid)
+
+    def list_templates(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM templates ORDER BY category, id"
+            ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "category": r["category"],
+                "form": _loads(r["form_json"]),
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+
+    def get_template(self, tpl_id: int) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM templates WHERE id = ?", (tpl_id,)
+            ).fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["id"],
+            "name": row["name"],
+            "category": row["category"],
+            "form": _loads(row["form_json"]),
+            "created_at": row["created_at"],
+        }
+
+    def delete_template(self, tpl_id: int) -> bool:
+        with self._lock:
+            cur = self._conn.execute("DELETE FROM templates WHERE id = ?", (tpl_id,))
             self._conn.commit()
             return cur.rowcount > 0
 

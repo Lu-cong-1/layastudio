@@ -16,8 +16,10 @@ DEFAULTS: Dict[str, str] = {
     "backend": "auto",          # auto | laya | mock
     "device": "",               # "" = 自动，或 cuda / cpu / mps / xpu
     "hf_endpoint": "https://hf-mirror.com",
+    "hf_cache_dir": "",         # 空 = HuggingFace 默认缓存
     "max_concurrent": "4",      # 推理准入上限，超限 503（防 GPU 过载）
     "api_key": "",              # 非空则 /v1/systemone 要求 Bearer
+    "api_enabled": "1",         # 0 = 停用 /v1/systemone（/health 恒开）
     "record_history": "1",
     "option_warn_threshold": "20",  # UI 对超过该选项数的 choice 出警示
     "host": "127.0.0.1",
