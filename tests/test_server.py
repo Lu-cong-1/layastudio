@@ -134,9 +134,11 @@ def test_history_lifecycle(client):
 
 def test_presets(client):
     presets = client.get("/api/presets").json()
-    assert len(presets) == 5
+    assert len(presets) == 6
     triage = next(p for p in presets if p["id"] == "triage")
     assert "department" in triage["questions"]
+    intent = next(p for p in presets if p["id"] == "intent")
+    assert "intent" in intent["questions"]
 
 
 def test_models_list_in_mock_mode(client):

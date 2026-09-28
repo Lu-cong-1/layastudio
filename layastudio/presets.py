@@ -125,6 +125,24 @@ PRESETS: List[Dict[str, Any]] = [
             },
         },
     },
+    {
+        "id": "intent",
+        "title": "意图识别",
+        "desc": "多意图分类，客服/营销通用",
+        "state": "我想了解一下你们企业版的报价，顺便问问能不能按年付费。",
+        "questions": {
+            "intent": {
+                "type": "choice",
+                "instructions": "判断用户这句话的意图",
+                "criteria": {
+                    "pricing": "询问价格、报价、费用",
+                    "sales": "购买意向、合同、签约、续费",
+                    "support": "使用问题、功能咨询、故障求助",
+                    "other": "闲聊或与业务无关的内容",
+                },
+            },
+        },
+    },
 ]
 
 
