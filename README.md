@@ -212,21 +212,6 @@ curl -X POST http://127.0.0.1:9527/v1/systemone \
 
 ---
 
-## 数据存放位置
-
-| 内容 | 位置 | 是否入库 Git |
-|---|---|---|
-| 推理历史 / 设置 / 评估任务 | `data/layastudio.db` | 不入库 |
-| 导出的微调数据集 | `data/exports/` | 不入库 |
-| 模型安装标记 | `data/models/` | 不入库 |
-| 运行日志 | `data/*.log` | 不入库 |
-| 模型权重 | HuggingFace 缓存目录 | 不入库 |
-| 源码 / 前端 / 文档 | `layastudio/` `js/` `css/` `index.html` | 入库 |
-
-`.gitignore` 已经配好，上面这些私有数据和大文件不会被提交。
-
----
-
 ## 运行测试
 
 ```bash
