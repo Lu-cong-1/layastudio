@@ -1,38 +1,66 @@
 # ---- 虚拟环境 / 缓存 ----
 .venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.ruff.toml
 
 # ---- 运行数据：推理历史、设置(可能含 api_key)、模型标记、导出数据集、日志 ----
 # 私有数据，绝不入库
 data/
+*.db
+*.db-shm
+*.db-wal
+
+# ---- 模型权重：大文件，用户自行下载，绝不上传 GitHub ----
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.h5
+*.msgpack
+*.ot
+*.npz*
+*.gguf
+*.ggml
 
 # ---- QA 截图与自动化产物 ----
 output/
 .playwright-cli/
+undefined/
+docs/screenshot-*.png
 
 # ---- 打包产物（exe 阶段）----
 build/
 dist/
 *.exe
+*.spec
 
 # ---- 编辑器 / 系统 ----
 .vscode/
 .idea/
 *.swp
+*~
 .DS_Store
 Thumbs.db
 
 # ---- 日志 ----
 *.log
-
-# ---- 工具运行残留（截图脚本变量为空时误建）----
-undefined/
+logs/
 
 # ---- skills CLI 项目级安装副产物（开发辅助，不入库）----
 /.agents/
 /.claude/
+/.mimocode/
 /skills-lock.json
+
+# ---- Node（前端 QA 偶用）----
+node_modules/
+package-lock.json

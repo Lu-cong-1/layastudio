@@ -92,7 +92,7 @@ class ModelManager:
         except Exception:
             return False
 
-    # ---- RLCD 温度校准状态（P1-2） ----
+    # ---- RLCD 温度校准状态 ----
 
     @staticmethod
     def _find_rl_config(base: Path) -> Optional[Path]:
@@ -219,8 +219,7 @@ class ModelManager:
         return configured or None
 
     def _repo_cache_dir(self, repo: str) -> Path:
-        import os as _os
-        cache_root = self._hf_cache_dir() or _os.environ.get("HF_HUB_CACHE") or (
+        cache_root = self._hf_cache_dir() or os.environ.get("HF_HUB_CACHE") or (
             Path.home() / ".cache" / "huggingface" / "hub"
         )
         return Path(cache_root) / ("models--" + repo.replace("/", "--"))

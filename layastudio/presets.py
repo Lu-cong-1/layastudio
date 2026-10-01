@@ -144,10 +144,3 @@ PRESETS: List[Dict[str, Any]] = [
         },
     },
 ]
-
-
-def get_preset(preset_id: str) -> Dict[str, Any]:
-    for preset in PRESETS:
-        if preset["id"] == preset_id:
-            return preset
-    raise KeyError(preset_id)

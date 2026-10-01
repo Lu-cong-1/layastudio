@@ -20,7 +20,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger("layastudio.adapter")
 
@@ -83,6 +83,50 @@ def state_text(state: Any) -> str:
     return json.dumps(state, ensure_ascii=False)
 
 
+def _validate_choice(qid: Any, crit: Any) -> int:
+    if not isinstance(crit, (dict, list)) or len(crit) == 0:
+        raise AdapterError(
+            422, f"question {qid!r}: a choice question needs at least one criterion")
+    count = len(crit)
+    if count > MAX_CHOICE_OPTIONS:
+        raise AdapterError(
+            413, f"too many choice options for {qid!r} ({count} > {MAX_CHOICE_OPTIONS})")
+    return count
+
+
+def _validate_score(qid: Any, crit: Any) -> int:
+    if not isinstance(crit, list) or len(crit) == 0:
+        raise AdapterError(
+            422, f"question {qid!r}: a score question needs a list of levels")
+    count = len(crit)
+    if count > MAX_SCORE_LEVELS:
+        raise AdapterError(
+            413, f"too many score levels for {qid!r} ({count} > {MAX_SCORE_LEVELS})")
+    if any(not isinstance(lv, str) or not lv.strip() for lv in crit):
+        raise AdapterError(422, f"question {qid!r}: every score level needs a description")
+    return count
+
+
+def _validate_noul(qid: Any, question: Dict[str, Any]) -> None:
+    crit = question.get("criteria")
+    if crit is not None:
+        if not isinstance(crit, dict) or not set(crit) <= {"true", "false"}:
+            raise AdapterError(
+                422, f"question {qid!r}: noul criteria must be keyed 'true'/'false'")
+        if any(not isinstance(v, str) or not v.strip() for v in crit.values()):
+            raise AdapterError(
+                422, f"question {qid!r}: noul criteria values must be non-empty strings")
+    labels = question.get("labels")
+    if labels is not None:
+        if (not isinstance(labels, dict) or set(labels) != {"true", "false"}
+                or len({str(v) for v in labels.values()}) != 2
+                or any(not str(v).strip() for v in labels.values())):
+            raise AdapterError(
+                422,
+                f"question {qid!r}: labels must map exactly true/false to distinct non-empty strings",
+            )
+
+
 def validate_request(state: Any, questions: Any) -> None:
     """HTTP 层限制（400/413）+ 语义校验（422），错误码与 laya/serve.py 对齐。"""
     if state is None:
@@ -100,46 +144,12 @@ def validate_request(state: Any, questions: Any) -> None:
         if qtype not in _QTYPES:
             raise AdapterError(
                 422, f"question {qid!r}: type must be one of {sorted(_QTYPES)}")
-        crit = question.get("criteria")
         if qtype == "choice":
-            if not isinstance(crit, (dict, list)) or len(crit) == 0:
-                raise AdapterError(
-                    422, f"question {qid!r}: a choice question needs at least one criterion")
-            count = len(crit)
-            total_options += count
-            if count > MAX_CHOICE_OPTIONS:
-                raise AdapterError(
-                    413, f"too many choice options for {qid!r} ({count} > {MAX_CHOICE_OPTIONS})")
+            total_options += _validate_choice(qid, question.get("criteria"))
         elif qtype == "score":
-            if not isinstance(crit, list) or len(crit) == 0:
-                raise AdapterError(
-                    422, f"question {qid!r}: a score question needs a list of levels")
-            count = len(crit)
-            total_options += count
-            if count > MAX_SCORE_LEVELS:
-                raise AdapterError(
-                    413, f"too many score levels for {qid!r} ({count} > {MAX_SCORE_LEVELS})")
-            if any(not isinstance(lv, str) or not lv.strip() for lv in crit):
-                raise AdapterError(422, f"question {qid!r}: every score level needs a description")
-        else:  # noul
-            if crit is not None:
-                if not isinstance(crit, dict) or not set(crit) <= {"true", "false"}:
-                    raise AdapterError(
-                        422,
-                        f"question {qid!r}: noul criteria must be keyed 'true'/'false'",
-                    )
-                if any(not isinstance(v, str) or not v.strip() for v in crit.values()):
-                    raise AdapterError(
-                        422, f"question {qid!r}: noul criteria values must be non-empty strings")
-            labels = question.get("labels")
-            if labels is not None:
-                if (not isinstance(labels, dict) or set(labels) != {"true", "false"}
-                        or len({str(v) for v in labels.values()}) != 2
-                        or any(not str(v).strip() for v in labels.values())):
-                    raise AdapterError(
-                        422,
-                        f"question {qid!r}: labels must map exactly true/false to distinct non-empty strings",
-                    )
+            total_options += _validate_score(qid, question.get("criteria"))
+        else:
+            _validate_noul(qid, question)
 
     if total_options > MAX_TOTAL_OPTIONS:
         raise AdapterError(

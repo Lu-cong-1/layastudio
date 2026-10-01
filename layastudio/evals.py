@@ -17,7 +17,7 @@ import json
 import logging
 import threading
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("layastudio.evals")
 

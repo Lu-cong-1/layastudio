@@ -58,7 +58,7 @@ const S = {
   view: 'playground',
   status: null,
   presets: [],
-  history: { offset: 0, limit: 30, total: 0, selected: new Set(), detailId: null },
+  history: { offset: 0, limit: 30, total: 0, selected: new Set() },
   evalSelected: null,
   runDetail: null,
 };
@@ -209,7 +209,6 @@ async function refreshStatus() {
 }
 
 /* ================= 调试台（简易表单 → 拼装 Laya 输入） ================= */
-/* UI 只负责收集到 S.form；拼装统一走 buildPayload()，与 core 解耦 */
 
 const TEMPLATE_KEY = 'layastudio.form-template.v1';
 const ONBOARD_KEY = 'layastudio.onboarded.v1';
@@ -298,7 +297,7 @@ function applyPayloadToForm(state, questions) {
   syncAdvanced();
 }
 
-/* ---- 渲染：单任务表单（标签在上、控件在下） ---- */
+/* ---- 渲染：单任务表单 ---- */
 function renderTaskForm() {
   const f = S.form;
   const singleWrap = $('#single-task-form');
@@ -471,7 +470,7 @@ function updateCounts() {
   if (lvHint) lvHint.textContent = `共 ${parseLevelLines(f.single.levels).length} 级`;
 }
 
-/* ---- 校验 + 拼装：S.form → {state, questions}（核心解耦函数） ---- */
+/* ---- 校验 + 拼装：S.form → {state, questions} ---- */
 function buildPayload() {
   syncFromDom();
   const f = S.form;
@@ -562,7 +561,7 @@ function buildPayload() {
   };
 }
 
-/* ---- 护栏 warnings：警告不阻断（R1） ---- */
+/* ---- 护栏 warnings：警告不阻断 ---- */
 function hasCJK(s) {
   return /[一-鿿぀-ヿ가-힯]/.test(String(s || ''));
 }
@@ -571,7 +570,7 @@ function pushWarning(list, code, msg) {
   if (!list.some(w => w.code === code)) list.push({ code, msg });
 }
 
-/* 从拼好的 payload 推导三条已知坑警示（表单路径与 JSON 路径共用） */
+/* 已知坑警示（表单与 JSON 路径共用） */
 function computeWarnings(payload) {
   const ws = [];
   const stateStr = typeof payload.state === 'string'
@@ -602,7 +601,7 @@ function computeWarnings(payload) {
       pushWarning(ws, 'noul-cjk',
         '中文 noul 上游未做校准（实测偏弱）：置信度仅供参考，重要决策请先用小样本评估');
     }
-    // 结构建议（P1-3）：指令疑似含多个独立因素 → 官方原子问题方法论
+    // 结构建议：指令疑似含多个独立因素 → 原子问题原则
     const instr = String(q.instructions || '');
     if (instr.length >= 8
         && (/(以及|并且|同时|还有)/.test(instr)
@@ -634,7 +633,7 @@ function renderWarnings(warnings) {
   box.hidden = false;
 }
 
-/* ---- 置信度三态门控（P0-3）：可自动 / 转人工 / 弃答 ---- */
+/* ---- 置信度三态门控：可自动 / 转人工 / 弃答 ---- */
 function getThreshold() {
   try {
     const saved = Number(localStorage.getItem(THRESH_KEY));
@@ -673,7 +672,7 @@ function gateVerdict(ans) {
   return conf >= T ? { k: 'auto', label: '可自动' } : { k: 'esc', label: '转人工' };
 }
 
-/* ---- 首次使用引导（P0-2） ---- */
+/* ---- 首次使用引导 ---- */
 let obStep = 1;
 
 function renderOnboard() {
@@ -691,11 +690,9 @@ function showOnboard(step) {
   $('#onboard').classList.remove('hidden');
 }
 
-function hideOnboard(markDone) {
+function hideOnboard() {
   $('#onboard').classList.add('hidden');
-  if (markDone) {
-    try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (_) { /* ignore */ }
-  }
+  try { localStorage.setItem(ONBOARD_KEY, '1'); } catch (_) { /* ignore */ }
 }
 
 /* ---- 校验错误展示（友好中文，不抛异常） ---- */
@@ -787,7 +784,7 @@ function loadExample() {
   toast('已载入客服工单示例模板', 'ok');
 }
 
-/* ---- P1-3 问题写作助手：基于 State 起草（预设匹配优先，兜底通用骨架） ---- */
+/* ---- 问题写作助手：基于 State 起草（预设匹配优先，兜底通用骨架） ---- */
 function tokensOf(s) {
   const out = new Set();
   const lower = String(s || '').toLowerCase();
@@ -817,9 +814,8 @@ function suggestDraft() {
     if (score > bestScore) { bestScore = score; best = p; }
   });
   if (best && bestScore >= 0.3) {
-    applyPayloadToForm(best.state === stateStr ? stateStr : stateStr, best.questions);
+    applyPayloadToForm(stateStr, best.questions);
     // 保留用户自己的 State，只换问题草稿
-    S.form.stateText = stateStr;
     renderAll();
     syncAdvanced();
     toast(`已按预设「${best.title}」起草问题（匹配度 ${(bestScore * 100).toFixed(0)}%），请按业务改写`, 'ok');
@@ -842,7 +838,6 @@ function suggestDraft() {
       instructions: '这件事是否紧急或有时限要求？',
     },
   });
-  S.form.stateText = stateStr;
   renderAll();
   syncAdvanced();
   toast('没有匹配的预设，已按通用骨架起草——请修改类别与指令', 'ok');
@@ -878,14 +873,18 @@ async function saveTemplate() {
   }
 }
 
-function applyTemplateForm(form) {
-  S.form = { ...defaultForm(), ...(form || {}) };
-  S.form.single = { ...defaultSingle(), ...((form && form.single) || {}) };
-  S.form.batch = Array.isArray(form && form.batch) ? form.batch : [];
+function mergeFormState(saved) {
+  S.form = { ...defaultForm(), ...(saved || {}) };
+  S.form.single = { ...defaultSingle(), ...((saved && saved.single) || {}) };
+  S.form.batch = Array.isArray(saved && saved.batch) ? saved.batch : [];
   S.form.batch.forEach(t => {
     uidSeq = Math.max(uidSeq, (Number(t.uid) || 0) + 1);
   });
-  if (form && form.threshold) setThreshold(form.threshold);
+  if (saved && saved.threshold) setThreshold(saved.threshold);
+}
+
+function applyTemplateForm(form) {
+  mergeFormState(form);
   renderAll();
   syncAdvanced();
 }
@@ -907,7 +906,7 @@ async function loadTemplates() {
           <span class="muted small">${esc(t.category)}</span>
         </div>
         <div class="job-meta">${esc(fmtTime(t.created_at))}</div>
-        <div class="m-actions" style="margin-top:8px">
+        <div class="m-actions">
           <button class="btn sm" type="button" data-tpl-load="${t.id}">载入</button>
           <button class="btn sm ghost danger" type="button" data-tpl-del="${t.id}">删除</button>
         </div>
@@ -921,12 +920,7 @@ function restoreTemplate() {
   try {
     const raw = localStorage.getItem(TEMPLATE_KEY);
     if (!raw) { S.form = defaultForm(); return; }
-    const saved = JSON.parse(raw);
-    S.form = { ...defaultForm(), ...saved };
-    S.form.single = { ...defaultSingle(), ...(saved.single || {}) };
-    S.form.batch = Array.isArray(saved.batch) ? saved.batch : [];
-    S.form.batch.forEach(t => { uidSeq = Math.max(uidSeq, (Number(t.uid) || 0) + 1); });
-    if (saved.threshold) setThreshold(saved.threshold);
+    mergeFormState(JSON.parse(raw));
     toast('已恢复上次保存的表单模板');
   } catch (_) {
     S.form = defaultForm();
@@ -1111,7 +1105,7 @@ function renderResults(result, serverMs, localMs) {
       return `<span class="verdict-chip"><span class="vc-key">${esc(qid)}</span>
         <b>${esc(val)}</b><span class="vc-conf ${confClass(a.confidence)}">${fmtPct(a.confidence)}</span></span>`;
     }).join('');
-    vrow.innerHTML = chips + `<span class="meta-badge ok" style="margin-left:auto">${esc(serverMs)} ms</span>`;
+    vrow.innerHTML = chips + `<span class="meta-badge ok">${esc(serverMs)} ms</span>`;
     vrow.hidden = false;
   } else {
     vrow.hidden = true;
@@ -1142,7 +1136,7 @@ function renderAnswer(qid, ans, routing, idx) {
     body = `
       <div class="answer-lead">
         <span class="answer-value">${esc(ans.choice ?? '—')}</span>
-        <span class="conf">confidence <b class="${confClass(ans.confidence)}" title="confidence = 1 − 归一化熵：分布越集中越高；度量模型对答案多确定，不直接等于正确概率">${fmtPct(ans.confidence)}</b></span>
+        ${confBadge(ans)}
       </div>
       <div class="bars">${bars}</div>`;
   } else if (type === 'score') {
@@ -1157,7 +1151,7 @@ function renderAnswer(qid, ans, routing, idx) {
     body = `
       <div class="answer-lead">
         <span class="answer-value mono">${score.toFixed(2)}<span class="conf"> / ${n}.0</span></span>
-        <span class="conf">confidence <b class="${confClass(ans.confidence)}" title="confidence = 1 − 归一化熵：分布越集中越高；度量模型对答案多确定，不直接等于正确概率">${fmtPct(ans.confidence)}</b></span>
+        ${confBadge(ans)}
       </div>
       <div class="scale-wrap">
         <div class="scale-track"><div class="scale-dot" style="left:${pct}%"></div></div>
@@ -1173,7 +1167,7 @@ function renderAnswer(qid, ans, routing, idx) {
         <div class="ring" style="--p:${(p * 100).toFixed(1)}"><b>${(p * 100).toFixed(1)}%</b></div>
         <div class="noul-text">
           <span class="answer-value">P(true) = ${p.toFixed(3)}</span>
-          <p class="conf">confidence <b class="${confClass(ans.confidence)}" title="confidence = 1 − 归一化熵：分布越集中越高；度量模型对答案多确定，不直接等于正确概率">${fmtPct(ans.confidence)}</b>
+          <p class="conf">confidence <b class="${confClass(ans.confidence)}" title="${CONF_TITLE}">${fmtPct(ans.confidence)}</b>
           ${routing.reason ? ' · ' + esc(routing.reason) : ''}</p>
         </div>
       </div>`;
@@ -1205,6 +1199,12 @@ function confClass(v) {
   return n >= 0.8 ? 'hi' : (n < 0.5 ? 'lo' : '');
 }
 
+const CONF_TITLE = 'confidence = 1 − 归一化熵：分布越集中越高；度量模型对答案多确定，不直接等于正确概率';
+
+function confBadge(ans) {
+  return `<span class="conf">confidence <b class="${confClass(ans.confidence)}" title="${CONF_TITLE}">${fmtPct(ans.confidence)}</b></span>`;
+}
+
 /* ================= 模型 ================= */
 
 function fmtBytes(n) {
@@ -1214,6 +1214,99 @@ function fmtBytes(n) {
   let v = Number(n);
   while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
   return `${v.toFixed(i ? 1 : 0)} ${units[i]}`;
+}
+
+function modelCardHtml(m) {
+  const dl = m.download || { status: 'idle' };
+  let badge = '<span class="badge off">未安装</span>';
+  if (dl.status === 'downloading') badge = '<span class="badge downloading">下载中…</span>';
+  else if (dl.status === 'error') badge = '<span class="badge error">下载失败</span>';
+  else if (m.loaded) badge = '<span class="badge loaded">已加载</span>';
+  else if (m.installed) badge = '<span class="badge installed">已安装</span>';
+
+  const actions = [];
+  if (!m.installed && dl.status !== 'downloading') {
+    actions.push(`<button class="btn sm" data-act="download" data-key="${m.key}">下载</button>`);
+  }
+  if (dl.status === 'downloading') {
+    actions.push('<button class="btn sm" disabled>下载中…</button>');
+  }
+  if (m.loaded) {
+    actions.push(`<button class="btn sm" data-act="unload" data-key="${m.key}">卸载</button>`);
+  } else {
+    actions.push(`<button class="btn sm primary" data-act="load" data-key="${m.key}">加载</button>`);
+  }
+
+  let progress = '';
+  if (dl.status === 'downloading') {
+    const pct = dl.total_bytes
+      ? Math.min(100, Math.round(((dl.got_bytes || 0) / dl.total_bytes) * 100))
+      : null;
+    progress = `
+      <div class="progress" style="margin-top:10px"><i style="width:${pct != null ? pct : 30}%"></i></div>
+      <div class="muted small" style="margin-top:5px">
+        ${fmtBytes(dl.got_bytes)} / ${dl.total_bytes ? fmtBytes(dl.total_bytes) : '计算中…'}
+        ${pct != null ? ` · ${pct}%` : ''}
+      </div>`;
+  }
+
+  const temp = m.temperature || { state: 'unavailable' };
+  const tempLabel = {
+    global: temp.value != null ? String(temp.value) : '—',
+    bucket: '按选项数分桶',
+    multi: '多处温度',
+    none: '未校准',
+    unknown: '未知',
+    unavailable: '—',
+  }[temp.state] || '—';
+  const tempWarn = ['none', 'unknown'].includes(temp.state);
+
+  return `
+    <div class="model-card">
+      <div class="m-top">
+        <div>
+          <h3>${esc(m.label)}</h3>
+          <div class="repo">${esc(m.repo)}</div>
+        </div>
+        ${badge}
+      </div>
+      <div class="m-specs">
+        <div class="m-spec"><span class="k">Encoder</span><span class="v">${esc(m.encoder)}</span></div>
+        <div class="m-spec"><span class="k">Params</span><span class="v">${esc(m.params)}</span></div>
+        <div class="m-spec"><span class="k">Context</span><span class="v">${esc(m.context)}</span></div>
+        <div class="m-spec"><span class="k">Key</span><span class="v">${esc(m.key)}</span></div>
+        <div class="m-spec" title="RLCD 温度校准状态：未校准的 checkpoint 概率可信度下降，建议先跑温度拟合">
+          <span class="k">温度</span><span class="v ${tempWarn ? 'temp-warn' : ''}">${esc(tempLabel)}</span></div>
+      </div>
+      <div class="m-use">${esc(m.use_for)}${m.size_hint ? ' · ' + esc(m.size_hint) : ''}${m.revision ? ' · rev ' + esc(m.revision) + '（生产建议钉住版本）' : ''}${m.installed_at ? ' · 安装于 ' + esc(m.installed_at) : ''}</div>
+      <div class="m-actions">${actions.join('')}</div>
+      ${progress}
+      ${dl.status === 'error' ? `<div class="m-error">${esc(dl.error || '未知错误')}</div>` : ''}
+    </div>`;
+}
+
+function bindModelActions() {
+  $$('#model-grid [data-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { act, key } = btn.dataset;
+      btn.disabled = true;
+      try {
+        const out = await api(`/api/models/${key}/${act}`, { method: 'POST' });
+        if (act === 'download') toast(`${key} 开始下载（走 HF 镜像），完成后出现安装徽章`, 'ok');
+        else if (act === 'unload' && out && out.freed_mb != null) {
+          toast(`已卸载 ${key}，释放显存 ${out.freed_mb} MB`, 'ok');
+        } else {
+          toast(`${key} ${act === 'load' ? '加载' : '卸载'}完成`, 'ok');
+        }
+        loadModels();
+        refreshStatus();
+        if (act === 'download') setTimeout(loadModels, 1500);
+      } catch (e) {
+        toast(`${act} 失败：${e.message}`, 'error');
+        btn.disabled = false;
+      }
+    });
+  });
 }
 
 async function loadModels() {
@@ -1228,92 +1321,8 @@ async function loadModels() {
           : '<span class="stat-chip">显存 <b>—</b></span>',
       hw.mem ? `<span class="stat-chip">内存 <b>${hw.mem.used_mb} MB</b> / ${hw.mem.total_mb} MB（${hw.mem.percent}%）</span>` : '',
     ].join('');
-    $('#model-grid').innerHTML = models.map(m => {
-      const dl = m.download || { status: 'idle' };
-      let badge = '<span class="badge off">未安装</span>';
-      if (dl.status === 'downloading') badge = '<span class="badge downloading">下载中…</span>';
-      else if (dl.status === 'error') badge = '<span class="badge error">下载失败</span>';
-      else if (m.loaded) badge = '<span class="badge loaded">已加载</span>';
-      else if (m.installed) badge = '<span class="badge installed">已安装</span>';
-
-      const actions = [];
-      if (!m.installed && dl.status !== 'downloading') {
-        actions.push(`<button class="btn sm" data-act="download" data-key="${m.key}">下载</button>`);
-      }
-      if (dl.status === 'downloading') {
-        actions.push('<button class="btn sm" disabled>下载中…</button>');
-      }
-      if (m.loaded) {
-        actions.push(`<button class="btn sm" data-act="unload" data-key="${m.key}">卸载</button>`);
-      } else {
-        actions.push(`<button class="btn sm primary" data-act="load" data-key="${m.key}">加载</button>`);
-      }
-      const progress = dl.status === 'downloading' ? (() => {
-        const pct = dl.total_bytes
-          ? Math.min(100, Math.round(((dl.got_bytes || 0) / dl.total_bytes) * 100))
-          : null;
-        return `
-          <div class="progress" style="margin-top:10px"><i style="width:${pct != null ? pct : 30}%"></i></div>
-          <div class="muted small" style="margin-top:5px">
-            ${fmtBytes(dl.got_bytes)} / ${dl.total_bytes ? fmtBytes(dl.total_bytes) : '计算中…'}
-            ${pct != null ? ` · ${pct}%` : ''}
-          </div>`;
-      })() : '';
-      const temp = m.temperature || { state: 'unavailable' };
-      const tempLabel = {
-        global: temp.value != null ? String(temp.value) : '—',
-        bucket: '按选项数分桶',
-        multi: '多处温度',
-        none: '未校准',
-        unknown: '未知',
-        unavailable: '—',
-      }[temp.state] || '—';
-      const tempWarn = ['none', 'unknown'].includes(temp.state);
-      return `
-        <div class="model-card">
-          <div class="m-top">
-            <div>
-              <h3>${esc(m.label)}</h3>
-              <div class="repo">${esc(m.repo)}</div>
-            </div>
-            ${badge}
-          </div>
-          <div class="m-specs">
-            <div class="m-spec"><span class="k">Encoder</span><span class="v">${esc(m.encoder)}</span></div>
-            <div class="m-spec"><span class="k">Params</span><span class="v">${esc(m.params)}</span></div>
-            <div class="m-spec"><span class="k">Context</span><span class="v">${esc(m.context)}</span></div>
-            <div class="m-spec"><span class="k">Key</span><span class="v">${esc(m.key)}</span></div>
-            <div class="m-spec" title="RLCD 温度校准状态：未校准的 checkpoint 概率可信度下降，建议先跑温度拟合">
-              <span class="k">温度</span><span class="v ${tempWarn ? 'temp-warn' : ''}">${esc(tempLabel)}</span></div>
-          </div>
-          <div class="m-use">${esc(m.use_for)}${m.size_hint ? ' · ' + esc(m.size_hint) : ''}${m.revision ? ' · rev ' + esc(m.revision) + '（生产建议钉住版本）' : ''}${m.installed_at ? ' · 安装于 ' + esc(m.installed_at) : ''}</div>
-          <div class="m-actions">${actions.join('')}</div>
-          ${progress}
-          ${dl.status === 'error' ? `<div class="m-error">${esc(dl.error || '未知错误')}</div>` : ''}
-        </div>`;
-    }).join('');
-
-    $$('#model-grid [data-act]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const { act, key } = btn.dataset;
-        btn.disabled = true;
-        try {
-          const out = await api(`/api/models/${key}/${act}`, { method: 'POST' });
-          if (act === 'download') toast(`${key} 开始下载（走 HF 镜像），完成后出现安装徽章`, 'ok');
-          else if (act === 'unload' && out && out.freed_mb != null) {
-            toast(`已卸载 ${key}，释放显存 ${out.freed_mb} MB`, 'ok');
-          } else {
-            toast(`${key} ${act === 'load' ? '加载' : '卸载'}完成`, 'ok');
-          }
-          loadModels();
-          refreshStatus();
-          if (act === 'download') setTimeout(loadModels, 1500);
-        } catch (e) {
-          toast(`${act} 失败：${e.message}`, 'error');
-          btn.disabled = false;
-        }
-      });
-    });
+    $('#model-grid').innerHTML = models.map(modelCardHtml).join('');
+    bindModelActions();
   } catch (e) {
     $('#model-grid').innerHTML = `<div class="empty-state">加载失败：${esc(e.message)}</div>`;
   }
@@ -1457,10 +1466,128 @@ async function loadEvalJobs() {
   }
 }
 
+/* 评估详情：指标 / 覆盖率 / 混淆矩阵 / 归因 / 明细表 各自独立渲染 */
+function evalCoverageCards(items) {
+  const covPairs = [];
+  items.forEach(it => {
+    const pred = it.predicted || {};
+    Object.keys(it.expected || {}).forEach(qid => {
+      const v = (it.results || {})[qid];
+      if (v === null || v === undefined) return;
+      const a = pred[qid] || {};
+      covPairs.push({
+        conf: Number(a.answer_confidence ?? a.confidence ?? 0),
+        ok: !!v,
+      });
+    });
+  });
+  const accAt = cov => {
+    if (!covPairs.length) return null;
+    const sorted = [...covPairs].sort((x, y) => y.conf - x.conf);
+    const n = Math.max(1, Math.round(sorted.length * cov));
+    const top = sorted.slice(0, n);
+    return top.filter(x => x.ok).length / top.length;
+  };
+  return [accAt(0.5), accAt(0.8)].map((acc, i) => acc == null ? '' : `
+    <div class="metric"><span class="k">acc@${i === 0 ? 50 : 80}%覆盖</span>
+      <span class="v">${(acc * 100).toFixed(1)}<span class="unit">%</span></span></div>`).join('');
+}
+
+function evalMatrixHtml(confusion) {
+  if (!confusion || !Object.keys(confusion).length) return '';
+  const labels = [...new Set([
+    ...Object.keys(confusion),
+    ...Object.values(confusion).flatMap(r => Object.keys(r)),
+  ])].sort();
+  const head = labels.map(l => `<th>${esc(l)}</th>`).join('');
+  const bodyRows = labels.map(t => {
+    const cells = labels.map(p => {
+      const n = (confusion[t] || {})[p] || 0;
+      const cls = t === p ? 'cm-diag' : (n ? 'cm-off' : '');
+      return `<td class="${cls}">${n || ''}</td>`;
+    }).join('');
+    return `<tr><th class="cm-row">${esc(t)}</th>${cells}</tr>`;
+  }).join('');
+  return `
+    <div class="subhead">Choice 混淆矩阵（行=期望 / 列=预测）</div>
+    <div class="table-wrap">
+      <table class="table cm-table">
+        <thead><tr><th>期望 \\ 预测</th>${head}</tr></thead>
+        <tbody>${bodyRows}</tbody>
+      </table>
+    </div>`;
+}
+
+function evalMisPredHtml(items) {
+  const wrongItems = items.filter(it => !it.correct && !it.error);
+  if (!wrongItems.length) return '';
+  const misPred = {};
+  wrongItems.forEach(it => {
+    const pred = summarizeAnswers(it.predicted) || {};
+    for (const [qid, verdict] of Object.entries(it.results || {})) {
+      if (verdict === false) {
+        const key = `${qid} → ${pred[qid]}`;
+        misPred[key] = (misPred[key] || 0) + 1;
+      }
+    }
+  });
+  const misTop = Object.entries(misPred).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    .map(([k, n]) => `<span class="stat-chip">${esc(k)} <b>${n}</b></span>`).join('');
+  return `<div class="subhead">错误样本归因（错误预测 top）</div>
+     <div class="chip-row">${misTop || '<span class="muted small">—</span>'}</div>`;
+}
+
+function evalItemRows(items) {
+  return items.map(it => `
+    <tr class="${it.correct ? '' : 'eval-item-bad'}">
+      <td>${it.idx}</td>
+      <td class="summary-cell">${esc(typeof it.state === 'string' ? it.state.slice(0, 80) : JSON.stringify(it.state).slice(0, 80))}</td>
+      <td class="mono">${esc(JSON.stringify(it.expected || {}))}</td>
+      <td class="mono">${esc(JSON.stringify(summarizeAnswers(it.predicted)))}</td>
+      <td>${it.error ? '<span class="status-error">err</span>'
+        : it.correct ? '<span class="status-ok">✓</span>' : '<span class="status-error">✗</span>'}</td>
+    </tr>`).join('');
+}
+
+function bindEvalActions(job) {
+  $('#ev-delete').addEventListener('click', async () => {
+    if (!confirm(`删除评估任务 #${job.id}？其逐条结果会一并删除。`)) return;
+    await api(`/api/eval/${job.id}`, { method: 'DELETE' });
+    S.evalSelected = null;
+    $('#eval-detail').classList.add('hidden');
+    loadEvalJobs();
+    toast('任务已删除');
+  });
+  $('#ev-report').addEventListener('click', async () => {
+    try {
+      const out = await api(`/api/eval/${job.id}/report`, { method: 'POST' });
+      toast(`报告已生成 → ${out.filename}`, 'ok');
+    } catch (e) {
+      toast('报告生成失败：' + e.message, 'error');
+    }
+  });
+  $('#ev-export-ds').addEventListener('click', async () => {
+    try {
+      const out = await api(`/api/eval/${job.id}/export-dataset`, { method: 'POST' });
+      toast(`微调集已导出 → ${out.filename}（${out.rows} 条标注）`, 'ok');
+    } catch (e) {
+      toast('导出失败：' + e.message, 'error');
+    }
+  });
+  const cancelBtn = $('#ev-cancel');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async () => {
+      await api(`/api/eval/${job.id}/cancel`, { method: 'POST' });
+      loadEvalJobs();
+    });
+  }
+}
+
 async function openEvalDetail(id) {
   S.evalSelected = id;
   try {
     const job = await api(`/api/eval/${id}?items=100`);
+    const items = job.items || [];
     const m = { ...(job.metrics || {}) };
     const confusion = m.choice_confusion || null;
     delete m.choice_confusion;
@@ -1468,90 +1595,6 @@ async function openEvalDetail(id) {
       <div class="metric"><span class="k">${esc(k)}</span>
       <span class="v">${typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(3)) : esc(v)}</span></div>`).join('');
 
-    // 置信度覆盖率（题级）：按置信度排序取 top 50% / 80% 子集重算准确率
-    const covPairs = [];
-    (job.items || []).forEach(it => {
-      const pred = it.predicted || {};
-      Object.keys(it.expected || {}).forEach(qid => {
-        const v = (it.results || {})[qid];
-        if (v === null || v === undefined) return;
-        const a = pred[qid] || {};
-        covPairs.push({
-          conf: Number(a.answer_confidence ?? a.confidence ?? 0),
-          ok: !!v,
-        });
-      });
-    });
-    const accAt = cov => {
-      if (!covPairs.length) return null;
-      const sorted = [...covPairs].sort((x, y) => y.conf - x.conf);
-      const n = Math.max(1, Math.round(sorted.length * cov));
-      const top = sorted.slice(0, n);
-      return top.filter(x => x.ok).length / top.length;
-    };
-    const cov50 = accAt(0.5);
-    const cov80 = accAt(0.8);
-    const covCards = [
-      cov50 != null ? `<div class="metric"><span class="k">acc@50%覆盖</span>
-        <span class="v">${(cov50 * 100).toFixed(1)}<span style="font-size:12px">%</span></span></div>` : '',
-      cov80 != null ? `<div class="metric"><span class="k">acc@80%覆盖</span>
-        <span class="v">${(cov80 * 100).toFixed(1)}<span style="font-size:12px">%</span></span></div>` : '',
-    ].join('');
-
-    // Choice 混淆矩阵（行=期望 / 列=预测，对角线高亮）
-    let matrixHtml = '';
-    if (confusion && Object.keys(confusion).length) {
-      const labels = [...new Set([
-        ...Object.keys(confusion),
-        ...Object.values(confusion).flatMap(r => Object.keys(r)),
-      ])].sort();
-      const head = labels.map(l => `<th>${esc(l)}</th>`).join('');
-      const bodyRows = labels.map(t => {
-        const cells = labels.map(p => {
-          const n = (confusion[t] || {})[p] || 0;
-          const cls = t === p ? 'cm-diag' : (n ? 'cm-off' : '');
-          return `<td class="${cls}">${n || ''}</td>`;
-        }).join('');
-        return `<tr><th class="cm-row">${esc(t)}</th>${cells}</tr>`;
-      }).join('');
-      matrixHtml = `
-        <div class="subhead">Choice 混淆矩阵（行=期望 / 列=预测）</div>
-        <div class="table-wrap">
-          <table class="table cm-table">
-            <thead><tr><th>期望 \\ 预测</th>${head}</tr></thead>
-            <tbody>${bodyRows}</tbody>
-          </table>
-        </div>`;
-    }
-
-    // 错误样本归因（错误预测 top）
-    const wrongItems = (job.items || []).filter(it => !it.correct && !it.error);
-    const misPred = {};
-    wrongItems.forEach(it => {
-      const pred = summarizeAnswers(it.predicted) || {};
-      for (const [qid, verdict] of Object.entries(it.results || {})) {
-        if (verdict === false) {
-          const key = `${qid} → ${pred[qid]}`;
-          misPred[key] = (misPred[key] || 0) + 1;
-        }
-      }
-    });
-    const misTop = Object.entries(misPred).sort((a, b) => b[1] - a[1]).slice(0, 5)
-      .map(([k, n]) => `<span class="stat-chip">${esc(k)} <b>${n}</b></span>`).join('');
-    const misHtml = wrongItems.length
-      ? `<div class="subhead">错误样本归因（错误预测 top）</div>
-         <div class="chip-row">${misTop || '<span class="muted small">—</span>'}</div>`
-      : '';
-
-    const rows = (job.items || []).map(it => `
-      <tr class="${it.correct ? '' : 'eval-item-bad'}">
-        <td>${it.idx}</td>
-        <td class="summary-cell">${esc(typeof it.state === 'string' ? it.state.slice(0, 80) : JSON.stringify(it.state).slice(0, 80))}</td>
-        <td class="mono">${esc(JSON.stringify(it.expected || {}))}</td>
-        <td class="mono">${esc(JSON.stringify(summarizeAnswers(it.predicted)))}</td>
-        <td>${it.error ? '<span class="status-error">err</span>'
-          : it.correct ? '<span class="status-ok">✓</span>' : '<span class="status-error">✗</span>'}</td>
-      </tr>`).join('');
     $('#eval-detail').classList.remove('hidden');
     $('#eval-detail').innerHTML = `
       <div class="card-head">
@@ -1564,13 +1607,13 @@ async function openEvalDetail(id) {
           <button class="btn sm ghost danger" id="ev-delete">删除</button>
         </div>
       </div>
-      <div class="metrics">${(metrics + covCards) || '<span class="muted small">尚无指标</span>'}</div>
-      ${matrixHtml}
-      ${misHtml}
-      <div class="table-wrap" style="margin-top:14px">
+      <div class="metrics">${(metrics + evalCoverageCards(items)) || '<span class="muted small">尚无指标</span>'}</div>
+      ${evalMatrixHtml(confusion)}
+      ${evalMisPredHtml(items)}
+      <div class="table-wrap spaced">
         <table class="table">
           <thead><tr><th>#</th><th>State</th><th>Expected</th><th>Predicted</th><th>判定</th></tr></thead>
-          <tbody>${rows}</tbody>
+          <tbody>${evalItemRows(items)}</tbody>
         </table>
       </div>
       <details class="ft-guide">
@@ -1586,37 +1629,7 @@ async function openEvalDetail(id) {
             acc@覆盖 前后变化</li>
         </ol>
       </details>`;
-    $('#ev-delete').addEventListener('click', async () => {
-      if (!confirm(`删除评估任务 #${job.id}？其逐条结果会一并删除。`)) return;
-      await api(`/api/eval/${job.id}`, { method: 'DELETE' });
-      S.evalSelected = null;
-      $('#eval-detail').classList.add('hidden');
-      loadEvalJobs();
-      toast('任务已删除');
-    });
-    $('#ev-report').addEventListener('click', async () => {
-      try {
-        const out = await api(`/api/eval/${job.id}/report`, { method: 'POST' });
-        toast(`报告已生成 → ${out.filename}`, 'ok');
-      } catch (e) {
-        toast('报告生成失败：' + e.message, 'error');
-      }
-    });
-    $('#ev-export-ds').addEventListener('click', async () => {
-      try {
-        const out = await api(`/api/eval/${job.id}/export-dataset`, { method: 'POST' });
-        toast(`微调集已导出 → ${out.filename}（${out.rows} 条标注）`, 'ok');
-      } catch (e) {
-        toast('导出失败：' + e.message, 'error');
-      }
-    });
-    const cancelBtn = $('#ev-cancel');
-    if (cancelBtn) {
-      cancelBtn.addEventListener('click', async () => {
-        await api(`/api/eval/${job.id}/cancel`, { method: 'POST' });
-        loadEvalJobs();
-      });
-    }
+    bindEvalActions(job);
     $('#eval-detail').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (e) {
     toast(e.message, 'error');
@@ -1987,7 +2000,6 @@ async function loadLogs() {
 
 /* ================= 初始化 ================= */
 
-/* 表单活动：DOM → 状态 → 按需重渲染 → 刷新预览 */
 function onFormActivity(e) {
   const t = e.target;
   syncFromDom();
@@ -2027,9 +2039,9 @@ function bindEvents() {
   // 首次引导
   $('#ob-next').addEventListener('click', () => {
     if (obStep < 3) { obStep += 1; renderOnboard(); }
-    else { hideOnboard(true); toast('引导完成，随时点下方「? 使用引导」重看', 'ok'); }
+    else { hideOnboard(); toast('引导完成，随时点下方「? 使用引导」重看', 'ok'); }
   });
-  $('#ob-skip').addEventListener('click', () => hideOnboard(true));
+  $('#ob-skip').addEventListener('click', () => hideOnboard());
   $('#ob-reopen').addEventListener('click', () => showOnboard(1));
 
   // 门控阈值：变化即重渲染现有结果（不重新推理）

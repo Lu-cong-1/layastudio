@@ -414,21 +414,6 @@ class Store:
             for r in rows
         ]
 
-    def get_template(self, tpl_id: int) -> Optional[Dict[str, Any]]:
-        with self._lock:
-            row = self._conn.execute(
-                "SELECT * FROM templates WHERE id = ?", (tpl_id,)
-            ).fetchone()
-        if not row:
-            return None
-        return {
-            "id": row["id"],
-            "name": row["name"],
-            "category": row["category"],
-            "form": _loads(row["form_json"]),
-            "created_at": row["created_at"],
-        }
-
     def delete_template(self, tpl_id: int) -> bool:
         with self._lock:
             cur = self._conn.execute("DELETE FROM templates WHERE id = ?", (tpl_id,))

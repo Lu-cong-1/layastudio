@@ -79,7 +79,6 @@ def export_runs(
         "path": str(path),
         "filename": filename,
         "rows": len(rows),
-        "filtered_out": None if filters is None else "applied",
         "run_ids": [r["run_id"] for r in rows],
     }
 

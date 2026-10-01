@@ -1,4 +1,13 @@
-# LayaStudio 运行时依赖（真实推理另需：pip install laya）
-fastapi>=0.115
-uvicorn[standard]>=0.30
-huggingface_hub>=0.30
+# LayaStudio 运行时依赖
+# 真实模型推理另需：pip install laya  （会连带安装 torch）
+# 仅用 Mock 后端演示时，装下面这些就够了。
+
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+huggingface_hub>=0.30,<1.0
+
+# 内存占用显示（缺失时自动跳过，不影响主功能）
+psutil>=5.9,<8.0
+
+# 测试（可选）：python -m pytest tests/
+# pytest>=8.0
