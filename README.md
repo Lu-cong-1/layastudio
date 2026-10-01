@@ -22,15 +22,25 @@ LayaStudio 是一个跑在你自己电脑上的决策模型调试台。它把 La
 
 ### 界面截图
 
-> 截图位置（发布前替换为真实截图）：
->
-> | 预览 | 文件建议路径 |
-> |---|---|
-> | 调试台（表单 + 结果） | `docs/screenshot-playground.png` |
-> | 观测台（延迟 / 路由） | `docs/screenshot-monitor.png` |
-> | 模型管理 | `docs/screenshot-models.png` |
-> | 批量评估 | `docs/screenshot-eval.png` |
-> | 首次使用引导 | `docs/screenshot-onboard.png` |
+**调试台**（表单 + 结果）
+
+![调试台](docs/screenshot-playground.png)
+
+**观测台**（延迟 / 路由 / 事件流）
+
+![观测台](docs/screenshot-monitor.png)
+
+**模型管理**
+
+![模型管理](docs/screenshot-models.png)
+
+**批量评估**（指标 / 混淆矩阵 / 错误明细）
+
+![批量评估](docs/screenshot-eval.png)
+
+**首次使用引导**
+
+![首次使用引导](docs/screenshot-onboard.png)
 
 ---
 

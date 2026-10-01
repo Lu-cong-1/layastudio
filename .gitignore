@@ -35,7 +35,6 @@ data/
 output/
 .playwright-cli/
 undefined/
-docs/screenshot-*.png
 
 # ---- 打包产物（exe 阶段）----
 build/
